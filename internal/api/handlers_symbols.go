@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -90,6 +91,14 @@ func (h *Handler) AddSymbol(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save symbol"})
 		return
 	}
+
+	// Trigger fundamentals research async — don't block the response.
+	sym := body.Symbol
+	go func() {
+		if _, err := h.tradex.TriggerDeepResearch(context.Background(), sym); err != nil {
+			h.log.Warn("add symbol: deep research trigger failed", zap.String("symbol", sym), zap.Error(err))
+		}
+	}()
 
 	c.JSON(http.StatusCreated, gin.H{"id": id, "symbol": body.Symbol, "tradex_subscription_id": tradexSubID})
 }

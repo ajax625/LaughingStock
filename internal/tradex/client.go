@@ -130,6 +130,103 @@ func (c *Client) GetLatestSignal(ctx context.Context, symbol string) (*Signal, e
 	return &out.Signals[0], nil
 }
 
+// ResearchJob is the response shape from TradeX's research job endpoints.
+type ResearchJob struct {
+	ID          string          `json:"id"`
+	Symbol      string          `json:"symbol"`
+	Status      string          `json:"status"`
+	Result      json.RawMessage `json:"result"`
+	ErrorMsg    string          `json:"error_msg,omitempty"`
+	CreatedAt   string          `json:"created_at"`
+	CompletedAt *string         `json:"completed_at,omitempty"`
+}
+
+// TriggerDeepResearch fires a fundamentals-only deep research job for the symbol.
+// Returns the job_id. Idempotent — TradeX returns the existing job if one already
+// completed today.
+func (c *Client) TriggerDeepResearch(ctx context.Context, symbol string) (string, error) {
+	body, _ := json.Marshal(map[string]string{"symbol": symbol})
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/research/deep", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-API-Key", c.apiKey)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("tradex: trigger research failed with status %d", resp.StatusCode)
+	}
+
+	var out struct {
+		JobID string `json:"job_id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", err
+	}
+	return out.JobID, nil
+}
+
+// GetLatestResearch returns the most recent completed research job for the symbol.
+func (c *Client) GetLatestResearch(ctx context.Context, symbol string) (*ResearchJob, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		fmt.Sprintf("%s/research/jobs?symbol=%s&limit=1", c.baseURL, symbol), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var out struct {
+		Jobs []struct {
+			ID          string  `json:"id"`
+			Symbol      string  `json:"symbol"`
+			Status      string  `json:"status"`
+			HasResult   bool    `json:"has_result"`
+			CreatedAt   string  `json:"created_at"`
+			CompletedAt *string `json:"completed_at"`
+		} `json:"jobs"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	if len(out.Jobs) == 0 {
+		return nil, nil
+	}
+
+	j := out.Jobs[0]
+	if !j.HasResult {
+		return &ResearchJob{ID: j.ID, Symbol: j.Symbol, Status: j.Status}, nil
+	}
+
+	// Fetch the full job with result
+	jobReq, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		fmt.Sprintf("%s/research/jobs/%s", c.baseURL, j.ID), nil)
+	if err != nil {
+		return nil, err
+	}
+	jobResp, err := c.httpClient.Do(jobReq)
+	if err != nil {
+		return nil, err
+	}
+	defer jobResp.Body.Close()
+
+	var job ResearchJob
+	if err := json.NewDecoder(jobResp.Body).Decode(&job); err != nil {
+		return nil, err
+	}
+	return &job, nil
+}
+
 func (c *Client) DeleteSubscription(ctx context.Context, id string) error {
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+"/subscriptions/"+id, nil)
 	if err != nil {

@@ -41,6 +41,9 @@ export const api = {
   // Quotes
   getQuotes: () => request<Record<string, number>>('GET', '/me/quotes'),
 
+  // Research
+  getSymbolResearch: (id: string) => request<import('./types').DeepResearch>('GET', `/me/symbols/${id}/research`),
+
   // Trade
   executeTrade: (symbol: string, side: 'buy' | 'sell', qty: number) =>
     request<{ order_id: string; symbol: string; side: string; qty: number; status: string }>(
