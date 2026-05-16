@@ -4,6 +4,7 @@ import type { UserSymbol, Signal, IntradaySignal } from '../types'
 
 interface Props {
   userSymbol: UserSymbol
+  currentPrice: number | null
   signal: Signal | null
   liveSignal: IntradaySignal | null
   alerted: boolean
@@ -14,7 +15,7 @@ function isIntraday(s: Signal | IntradaySignal): s is IntradaySignal {
   return 'long' in s && 'short' in s
 }
 
-export function SymbolCard({ userSymbol, signal, liveSignal, alerted, onDelete }: Props) {
+export function SymbolCard({ userSymbol, currentPrice, signal, liveSignal, alerted, onDelete }: Props) {
   const [qty, setQty] = useState('1')
   const [trading, setTrading] = useState(false)
   const [tradeResult, setTradeResult] = useState<string | null>(null)
@@ -75,7 +76,14 @@ export function SymbolCard({ userSymbol, signal, liveSignal, alerted, onDelete }
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-xl font-bold text-white">{userSymbol.symbol}</h3>
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-xl font-bold text-white">{userSymbol.symbol}</h3>
+            {currentPrice !== null && (
+              <span className="text-lg font-mono font-semibold text-gray-100">
+                ${currentPrice.toFixed(2)}
+              </span>
+            )}
+          </div>
           <span className="text-xs text-gray-500">{userSymbol.trader_type} trader</span>
         </div>
         <div className="flex items-center gap-2">

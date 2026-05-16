@@ -14,6 +14,7 @@ export function DashboardPage() {
   const [signalMap, setSignalMap] = useState<Record<string, Signal | null>>({})
   const [liveSignalMap, setLiveSignalMap] = useState<Record<string, IntradaySignal>>({})
   const [alertedSymbols, setAlertedSymbols] = useState<Set<string>>(new Set())
+  const [priceMap, setPriceMap] = useState<Record<string, number>>({})
   const [showAddModal, setShowAddModal] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -31,7 +32,21 @@ export function DashboardPage() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { loadData() }, [loadData])
+  const loadQuotes = useCallback(async () => {
+    try {
+      const quotes = await api.getQuotes()
+      setPriceMap(quotes)
+    } catch {
+      // silently ignore — user may not have Alpaca creds set
+    }
+  }, [])
+
+  useEffect(() => {
+    loadData()
+    loadQuotes()
+    const interval = setInterval(loadQuotes, 30_000)
+    return () => clearInterval(interval)
+  }, [loadData, loadQuotes])
 
   // WebSocket — receives live signals from TradeX via LaughingStock
   useWebSocket((data) => {
@@ -45,7 +60,6 @@ export function DashboardPage() {
       setSignalMap(prev => ({ ...prev, [sym]: payload as unknown as Signal }))
     }
 
-    // Trigger alert state — auto-dismiss after 60s
     setAlertedSymbols(prev => new Set([...prev, sym]))
     setTimeout(() => {
       setAlertedSymbols(prev => {
@@ -92,6 +106,7 @@ export function DashboardPage() {
             <SymbolCard
               key={us.id}
               userSymbol={us}
+              currentPrice={priceMap[us.symbol] ?? null}
               signal={signalMap[us.symbol] ?? null}
               liveSignal={liveSignalMap[us.symbol] ?? null}
               alerted={alertedSymbols.has(us.symbol)}

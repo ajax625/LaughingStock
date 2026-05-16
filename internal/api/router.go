@@ -53,6 +53,7 @@ func (h *Handler) Register(r *gin.Engine) {
 		auth.DELETE("/me/symbols/:id", h.DeleteSymbol)
 
 		auth.GET("/me/signals", h.GetUserSignals)
+		auth.GET("/me/quotes", h.GetQuotes)
 		auth.POST("/me/trade", h.ExecuteTrade)
 
 		auth.GET("/ws", h.ServeWS)

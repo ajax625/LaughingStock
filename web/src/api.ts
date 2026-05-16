@@ -38,6 +38,9 @@ export const api = {
   // Signals
   getSignals: () => request<{ signals: import('./types').SymbolSignalEntry[] }>('GET', '/me/signals'),
 
+  // Quotes
+  getQuotes: () => request<Record<string, number>>('GET', '/me/quotes'),
+
   // Trade
   executeTrade: (symbol: string, side: 'buy' | 'sell', qty: number) =>
     request<{ order_id: string; symbol: string; side: string; qty: number; status: string }>(
