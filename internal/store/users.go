@@ -8,13 +8,13 @@ import (
 )
 
 type User struct {
-	ID             string
-	Email          string
-	PasswordHash   string
-	TelegramChatID string
-	AlpacaKey      string
-	AlpacaSecret   string
-	WebhookToken   string
+	ID             string `json:"id"`
+	Email          string `json:"email"`
+	PasswordHash   string `json:"-"`
+	TelegramChatID string `json:"telegram_chat_id"`
+	AlpacaKey      string `json:"-"`
+	AlpacaSecret   string `json:"-"`
+	WebhookToken   string `json:"webhook_token"`
 }
 
 func (s *Store) CreateUser(ctx context.Context, u *User) error {

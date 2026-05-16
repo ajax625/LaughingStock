@@ -5,15 +5,15 @@ import (
 )
 
 type UserSymbol struct {
-	ID                   string
-	UserID               string
-	Symbol               string
-	TraderType           string
-	MinROI               float64
-	MinRR                float64
-	MinConfidence        float64
-	TradeXSubscriptionID string
-	Active               bool
+	ID                   string  `json:"id"`
+	UserID               string  `json:"user_id"`
+	Symbol               string  `json:"symbol"`
+	TraderType           string  `json:"trader_type"`
+	MinROI               float64 `json:"min_roi"`
+	MinRR                float64 `json:"min_rr"`
+	MinConfidence        float64 `json:"min_confidence"`
+	TradeXSubscriptionID string  `json:"tradex_subscription_id"`
+	Active               bool    `json:"active"`
 }
 
 func (s *Store) CreateUserSymbol(ctx context.Context, us *UserSymbol) error {
