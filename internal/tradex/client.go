@@ -1,0 +1,150 @@
+package tradex
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
+)
+
+type Client struct {
+	baseURL    string
+	apiKey     string
+	httpClient *http.Client
+}
+
+func New(baseURL, apiKey string) *Client {
+	return &Client{
+		baseURL: baseURL,
+		apiKey:  apiKey,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
+	}
+}
+
+type CreateSubscriptionRequest struct {
+	Name          string  `json:"name"`
+	WebhookURL    string  `json:"webhook_url"`
+	Symbol        string  `json:"symbol"`
+	TraderType    string  `json:"trader_type"`
+	MinROI        float64 `json:"min_roi"`
+	MinRR         float64 `json:"min_rr"`
+	MinConfidence float64 `json:"min_confidence"`
+}
+
+type CreateSubscriptionResponse struct {
+	ID string `json:"id"`
+}
+
+func (c *Client) CreateSubscription(ctx context.Context, req CreateSubscriptionRequest) (string, error) {
+	body, _ := json.Marshal(req)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/subscriptions", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-API-Key", c.apiKey)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		return "", fmt.Errorf("tradex: create subscription failed with status %d", resp.StatusCode)
+	}
+
+	var out CreateSubscriptionResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", err
+	}
+	return out.ID, nil
+}
+
+type UpdateSubscriptionRequest struct {
+	WebhookURL    string  `json:"webhook_url,omitempty"`
+	MinROI        float64 `json:"min_roi"`
+	MinRR         float64 `json:"min_rr"`
+	MinConfidence float64 `json:"min_confidence"`
+}
+
+func (c *Client) UpdateSubscription(ctx context.Context, id string, req UpdateSubscriptionRequest) error {
+	body, _ := json.Marshal(req)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPatch, c.baseURL+"/subscriptions/"+id, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-API-Key", c.apiKey)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("tradex: update subscription failed with status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+type Signal struct {
+	ID          string   `json:"id"`
+	Symbol      string   `json:"symbol"`
+	Direction   string   `json:"direction"`
+	Confidence  float64  `json:"confidence"`
+	Entry       float64  `json:"entry"`
+	Target      float64  `json:"target"`
+	Stop        float64  `json:"stop"`
+	Timeframe   string   `json:"timeframe"`
+	SignalsFired []string `json:"signals_fired"`
+	Mode        string   `json:"mode"`
+	GeneratedAt string   `json:"generated_at"`
+}
+
+func (c *Client) GetLatestSignal(ctx context.Context, symbol string) (*Signal, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		fmt.Sprintf("%s/signals?symbol=%s&limit=1", c.baseURL, symbol), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var out struct {
+		Signals []Signal `json:"signals"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	if len(out.Signals) == 0 {
+		return nil, nil
+	}
+	return &out.Signals[0], nil
+}
+
+func (c *Client) DeleteSubscription(ctx context.Context, id string) error {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+"/subscriptions/"+id, nil)
+	if err != nil {
+		return err
+	}
+	httpReq.Header.Set("X-API-Key", c.apiKey)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("tradex: delete subscription failed with status %d", resp.StatusCode)
+	}
+	return nil
+}
